@@ -1,7 +1,7 @@
 [package]
 name = "rhq"
 description = "A repository management tool"
-version = "0.4.0-dev"
+version = "0.4.0-dev-mp"
 edition = "2018"
 authors = ["Yusuke Sasaki <yusuke.sasaki.nuem@gmail.com>"]
 license = "MIT"
@@ -37,3 +37,4 @@ shellexpand = "1"
 toml = "0.5"
 url = "2"
 walkdir = "2"
+file-lock = "1.1.20"

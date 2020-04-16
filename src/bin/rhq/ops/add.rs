@@ -28,10 +28,13 @@ impl AddCommand {
             .paths
             .unwrap_or_else(|| vec![env::current_dir().expect("env::current_dir()")]);
 
+        // simple fix: add file lock in here
         let mut workspace = Workspace::new()?.verbose_output(self.verbose);
+
         for path in paths {
             workspace.add_repository_if_exists(&path)?;
         }
+
         workspace.save_cache()?;
 
         Ok(())

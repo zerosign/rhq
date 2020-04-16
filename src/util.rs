@@ -1,7 +1,6 @@
 use anyhow::Result;
 use shellexpand;
 use std::borrow::Borrow;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn make_path_buf<S: AsRef<str>>(s: S) -> Result<PathBuf> {
@@ -46,20 +45,6 @@ impl StrSkip for str {
 fn test_skipped_1() {
     assert_eq!("hoge".skip(1), "oge");
     assert_eq!("あいueo".skip(1), "いueo");
-}
-
-pub fn write_content<P, F>(path: P, write_fn: F) -> Result<()>
-where
-    P: AsRef<Path>,
-    F: FnOnce(&mut fs::File) -> Result<()>,
-{
-    fs::create_dir_all(path.as_ref().parent().unwrap())?;
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&path)?;
-    write_fn(&mut file)
 }
 
 pub mod process {

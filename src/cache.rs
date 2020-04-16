@@ -3,13 +3,14 @@
 use crate::repository::Repository;
 use anyhow::Result;
 use chrono::{DateTime, Local};
+use file_lock::FileLock;
 use serde::{Deserialize, Serialize};
-use std::{fs::OpenOptions, path::Path};
+use std::{collections::BTreeSet, path::Path};
 
 // inner representation of cache format.
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct CacheData {
-    pub repositories: Vec<Repository>,
+    pub repositories: BTreeSet<Repository>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,35 +19,53 @@ pub struct Cache {
     inner: Option<CacheData>,
 }
 
-impl Cache {
+#[derive(Debug)]
+pub struct SharedCache {
+    inner: Cache,
+    lock: FileLock,
+}
+
+impl SharedCache {
     pub fn new(cache_path: &Path) -> Result<Self> {
         if cache_path.exists() {
-            let mut file = OpenOptions::new().read(true).open(cache_path)?;
-            let cache = serde_json::from_reader(&mut file)?;
-            Ok(cache)
+            // force the lock to drop
+            let cache: Cache = {
+                let mut lock = FileLock::lock(cache_path.to_string_lossy().as_ref(), true, false)?;
+                serde_json::from_reader(&mut lock.file)?
+            };
+
+            let lock = FileLock::lock(cache_path.to_string_lossy().as_ref(), true, true)?;
+
+            Ok(SharedCache {
+                inner: cache,
+                lock: lock,
+            })
         } else {
-            Ok(Cache {
-                timestamp: Local::now(),
-                inner: None,
+            let lock = FileLock::lock(cache_path.to_string_lossy().as_ref(), true, true)?;
+
+            Ok(SharedCache {
+                inner: Cache {
+                    timestamp: Local::now(),
+                    inner: None,
+                },
+                lock: lock,
             })
         }
     }
 
     pub fn get_opt(&self) -> Option<&CacheData> {
-        self.inner.as_ref()
+        self.inner.inner.as_ref()
     }
 
     pub fn get_mut(&mut self) -> &mut CacheData {
-        if self.inner.is_none() {
-            self.inner = Some(Default::default());
+        if self.inner.inner.is_none() {
+            self.inner.inner = Some(Default::default());
         }
-        self.inner.as_mut().unwrap()
+        self.inner.inner.as_mut().unwrap()
     }
 
-    pub fn dump(&mut self, cache_path: &Path) -> Result<()> {
-        self.timestamp = Local::now();
-        crate::util::write_content(cache_path, |f| {
-            serde_json::to_writer_pretty(f, &self).map_err(Into::into)
-        })
+    pub fn dump(&mut self) -> Result<()> {
+        self.inner.timestamp = Local::now();
+        serde_json::to_writer_pretty(&self.lock.file, &self.inner).map_err(Into::into)
     }
 }

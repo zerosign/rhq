@@ -10,7 +10,7 @@ use std::{ffi::OsStr, fmt::Display, path::Path, str::FromStr};
 
 pub const POSSIBLE_VCS: &[&str] = &["git", "hg", "darcs", "pijul"];
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq)]
 pub enum Vcs {
     Git,
     Hg,

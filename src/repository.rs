@@ -14,7 +14,7 @@ use std::{
 };
 
 /// local repository
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct Repository {
     /// name of repository
     name: String,
@@ -26,6 +26,15 @@ pub struct Repository {
     #[serde(skip_serializing_if = "Option::is_none")]
     remote: Option<Remote>,
 }
+
+impl PartialEq for Repository {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.path == other.path
+    }
+}
+
+impl Eq for Repository {}
 
 impl Repository {
     /// Make an instance of `Repository` from local path.

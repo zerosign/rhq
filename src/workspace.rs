@@ -1,5 +1,5 @@
 use crate::{
-    cache::Cache,
+    cache::SharedCache,
     config::Config,
     printer::Printer,
     query::Query,
@@ -10,13 +10,14 @@ use crate::{
 use anyhow::{anyhow, Result};
 use glob::Pattern;
 use std::{
+    collections::BTreeSet,
     fmt::Arguments,
     path::{Path, PathBuf},
 };
 use walkdir::{DirEntry, WalkDir};
 
 pub struct Workspace {
-    cache: Cache,
+    cache: SharedCache,
     config: Config,
     printer: Printer,
 }
@@ -24,7 +25,7 @@ pub struct Workspace {
 impl Workspace {
     pub fn new() -> Result<Self> {
         let config = Config::new(None)?;
-        let cache = Cache::new(&config.cache_dir())?;
+        let cache = SharedCache::new(&config.cache_dir())?;
         Ok(Workspace {
             cache,
             config,
@@ -47,10 +48,9 @@ impl Workspace {
 
     /// Returns a list of managed repositories.
     /// Note that this method returns None if cache has not created yet.
-    pub fn repositories(&self) -> Option<&[Repository]> {
-        self.cache
-            .get_opt()
-            .map(|cache| cache.repositories.as_slice())
+    #[inline]
+    pub fn repositories(&self) -> Option<&BTreeSet<Repository>> {
+        self.cache.get_opt().map(|s| &s.repositories)
     }
 
     pub fn config(&self) -> &Config {
@@ -72,18 +72,20 @@ impl Workspace {
 
     pub fn add_repository(&mut self, repo: Repository) {
         let repos = &mut self.cache.get_mut().repositories;
-        if let Some(r) = repos.iter_mut().find(|r| r.is_same_local(&repo)) {
+
+        if repos.contains(&repo) {
             self.printer.print(format_args!(
                 "Overwrite existed entry: {}\n",
                 repo.path_string()
             ));
-            *r = repo;
-            return;
-        }
 
-        self.printer
-            .print(format_args!("Add new entry: {}\n", repo.path_string()));
-        repos.push(repo);
+            repos.replace(repo);
+        } else {
+            let path = repo.path_string();
+            repos.insert(repo);
+            self.printer
+                .print(format_args!("Add new entry: {}\n", path));
+        }
     }
 
     pub fn add_repository_if_exists(&mut self, path: &Path) -> Result<()> {
@@ -120,19 +122,12 @@ impl Workspace {
                     .print(format_args!("Dropped: {}\n", repo.path_string()));
             }
         }
-        self.cache.get_mut().repositories = new_repo;
-    }
-
-    pub fn sort_repositories(&mut self) {
-        self.cache
-            .get_mut()
-            .repositories
-            .sort_by(|a, b| a.name().cmp(b.name()));
+        self.cache.get_mut().repositories.extend(new_repo);
     }
 
     /// Save current state of workspace to cache file.
     pub fn save_cache(&mut self) -> Result<()> {
-        self.cache.dump(&self.config.cache_dir())?;
+        self.cache.dump()?;
         Ok(())
     }
 
